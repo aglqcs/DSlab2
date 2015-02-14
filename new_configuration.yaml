@@ -1,0 +1,26 @@
+## YAML Template.
+---
+configuration : 
+    - name : alice
+      ip : 128.237.166.243
+      port : 12344
+    - name : bob
+      ip : 128.237.166.243
+      port : 14255
+    - name : charlie
+      ip : 128.237.166.243
+      port : 12998
+    - name: daphnie
+      ip : 128.237.166.243
+      port : 1985
+    - name : logger
+      ip : 128.237.166.243
+      port : 1987
+    
+sendRules : 
+    - action : drop
+      kind : impossiblekind
+    
+receiveRules :
+    - action : drop
+      kind : impossiblekind

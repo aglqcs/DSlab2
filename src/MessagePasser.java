@@ -29,6 +29,7 @@ public class MessagePasser {
 	public static HashMap<String, Host> hosts = new HashMap<String,Host>();// stores <dest_name, host>
 //	private int server_port = 12345; // this value is randomly chosen
 	private int server_port;
+	public static HashMap<String,Group> groups = new HashMap<String, Group>();
 	private static String logger = "logger";
 	private Socket logger_socket;
 	private static LogicClockService logic_clock;
@@ -53,13 +54,11 @@ public class MessagePasser {
 			return;
 		}
 	
-		/* choose logic or vector clock...UPDATE: Not needed, user inputs clock choice */
-//		clock_type = 2; // here set clock_type to 2 to switch to vector clock
 
 		logic_clock = new LogicClockService();
 		vector_clock = new VectorClockService();
 		
-		/* establish connection to logger*/
+		/*TODO need restore establish connection to logger*/
 		if( local_name.compareToIgnoreCase(logger) != 0 ){
 			InetAddress dst_ip = InetAddress.getByName(hosts.get(logger).get_ip());
 			int dst_port = Integer.parseInt(hosts.get(logger).get_port());
@@ -97,6 +96,7 @@ public class MessagePasser {
 		TimeStampedMessage message = new TimeStampedMessage(to_send,get_clock().getTimeStamp());
 
 		// When user create message: should call set_seqnumber, set_dest,set_kind
+		message.set_seqNum();
 		message.set_source(local_name);
 		message.set_duplicate(false);
 		int result = send_check(message);
@@ -111,10 +111,6 @@ public class MessagePasser {
 			while( !send_queue.isEmpty()){
 				message = send_queue.poll();
 				send(message);
-				//out = new ObjectOutputStream(fd.getOutputStream());
-				//out.writeObject(message);
-				//out.flush();
-				//System.out.println("[SEND delay]	"+message.get_dest()+":"+message.get_data().toString());
 			}
 		}
 		else if(result == 1){
@@ -152,11 +148,6 @@ public class MessagePasser {
 			System.out.println("[SEND dup2]	"+message.get_dest()+":"+message.get_data().toString());
 			while( !send_queue.isEmpty()){
 				message = send_queue.poll();
-				send(message);
-				//out = new ObjectOutputStream(fd.getOutputStream());
-				//out.writeObject(message);
-				//out.flush();
-				//System.out.println("[SEND delay]	"+message.get_dest()+":"+message.get_data().toString());
 			}
 		}
 		else{
@@ -185,7 +176,7 @@ public class MessagePasser {
 		
 		//String url = file_name;
 		String new_file = "new_configuration.yaml";
-		
+		/* TODO should restore these line after implementation
 		try {
 			URL download=new URL(url);
 			ReadableByteChannel rbc=Channels.newChannel(download.openStream());
@@ -195,14 +186,30 @@ public class MessagePasser {
 			fileOut.close();
 			rbc.close();
 		} catch(Exception e){ e.printStackTrace(); }		
+		*/
+		FileInputStream file = new FileInputStream("/Users/shuo/Documents/eclipse/workspace/DSlab2/configuration.yaml");
+		//FileInputStream file = new FileInputStream(new_file);
+		/* TODO should restore last line */
 		
-		
-		FileInputStream file = new FileInputStream(new_file);
 		Yaml yaml =new Yaml();
 		Map<String, Object>  buffer = (Map<String, Object>) yaml.load(file);
+		List<Map<String, Object>> group_list  = (List<Map<String, Object>>) buffer.get("groups");
 		List<Map<String, Object>> host_list  = (List<Map<String, Object>>) buffer.get("configuration");
 		List<Map<String, Object>> send_list  = (List<Map<String, Object>>) buffer.get("sendRules");
 		List<Map<String, Object>> recv_list  = (List<Map<String, Object>>) buffer.get("receiveRules");
+		if( group_list != null){
+			for(Map<String , Object> iterator : group_list){
+				Group group = new Group();
+				String group_name = (String)iterator.get("name");
+				ArrayList<String> member_list = (ArrayList<String>)iterator.get("members");
+				group.set_name(group_name);
+				LinkedList<String> temp = new LinkedList<String>();  
+				while( !member_list.isEmpty()){
+					group.get_member().add(member_list.remove(0));
+				} 
+				groups.put(group_name,group);
+			}
+		}
 		if(host_list == null || host_list.contains(null) || host_list.contains("")) {
 			System.out.println("ERROR: No hosts found!!");
             /* TODO throw error, exit program */
@@ -279,7 +286,26 @@ public class MessagePasser {
 		}
 		return 0;
 	}
-	
+	public void multicast(Message to_send, String dest_group) throws IOException{
+		Group get = groups.get(dest_group);
+		boolean check = false;
+		for(String dest : get.get_member()){
+			if(dest.compareToIgnoreCase(local_name) == 0){
+				check = true;
+				break;
+			}
+		}
+		if(!check){
+			System.out.println("illegal group name, exiting");
+			return;
+		}
+		for(String dest : get.get_member()){
+			if( dest.compareToIgnoreCase(local_name) != 0){ 
+				to_send.set_dest(dest);
+				send(to_send);
+			}
+		}
+	}
 	public int set_clockType(String type) {
 		if(type.equalsIgnoreCase("logic")) clock_type = 1;
 		else if(type.equalsIgnoreCase("vector")) clock_type = 2;
